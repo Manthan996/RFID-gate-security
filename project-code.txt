@@ -1,0 +1,54 @@
+#include <Servo.h>
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define SS_PIN 10
+#define RST_PIN 9
+#define BUZZER_PIN 6
+String correctUID = "A32B3910";  // Correct UID for RFID card, must be exact
+
+Servo servo;
+MFRC522 rfid(SS_PIN, RST_PIN);
+
+void setup() {
+  Serial.begin(9600);
+  servo.attach(3);
+  servo.write(0);  // Start with the servo in the locked position (0 degrees)
+  SPI.begin();
+  rfid.PCD_Init();
+  pinMode(BUZZER_PIN, OUTPUT);
+}
+
+void loop() {
+  if (!rfid.PICC_IsNewCardPresent()) {
+    return;
+  }
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
+  }
+
+  String ID = "";
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    if (rfid.uid.uidByte[i] < 0x10) {
+      ID.concat("0");
+    }
+    ID.concat(String(rfid.uid.uidByte[i], HEX));
+  }
+  ID.toUpperCase();
+
+  Serial.print("NUID tag is: ");
+  Serial.println(ID);
+
+  if (ID == correctUID) {
+    servo.write(100);  // Open the lock to 100 degrees
+    delay(5000);       // Keep the door open for 5 seconds
+    servo.write(0);    // Lock the door again
+  } else {
+    digitalWrite(BUZZER_PIN, HIGH);   // Activate the buzzer
+    delay(1000);                      // Buzzer on for 1 second
+    digitalWrite(BUZZER_PIN, LOW);    // Turn off the buzzer
+  }
+
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+}
